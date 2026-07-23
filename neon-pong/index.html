@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#090a13"><title>네온 퐁: 오버드라이브</title><link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="loadout.css">
+</head>
+<body>
+<main class="shell">
+  <header><div><p class="eyebrow">2 PLAYER ARCADE</p><h1>NEON <span>PONG</span></h1></div><button id="soundBtn" class="icon-button" type="button" aria-label="소리 켜기 또는 끄기">🔊 ON</button></header>
+  <section class="scoreboard" aria-label="점수판">
+    <article class="player cyan"><span>PLAYER 1</span><strong id="score1">0</strong><small>W · S</small></article>
+    <div class="round"><span>FIRST TO</span><strong id="targetDisplay">7</strong></div>
+    <article class="player pink"><span>PLAYER 2</span><strong id="score2">0</strong><small>↑ · ↓</small></article>
+  </section>
+  <section class="game-wrap">
+    <canvas id="game" width="960" height="540" aria-label="네온 퐁 게임"></canvas>
+    <div id="overlay" class="overlay">
+      <p id="overlayTag">LOCAL MULTIPLAYER</p><h2 id="overlayTitle">대결을 준비하세요</h2>
+      <p id="overlayText">목표 점수를 고르고 두 선수의 조작키를 확인하세요.</p>
+      <label id="scorePicker" class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
+      <section id="loadoutPicker" class="loadout-picker" aria-label="스킬 선택">
+        <div><strong>PLAYER 1 · 스킬 3개 선택</strong><div id="loadout1" class="loadout-options"></div></div>
+        <div><strong>PLAYER 2 · 스킬 3개 선택</strong><div id="loadout2" class="loadout-options"></div></div>
+      </section>
+      <button id="startBtn" type="button">게임 시작 <span>SPACE</span></button>
+    </div>
+  </section>
+  <section class="skill-panel" aria-label="스킬 상태">
+    <article class="skill-card cyan">
+      <div class="skill-heading"><span>PLAYER 1 SKILLS</span><strong>Q · E · R · F · G · H</strong></div>
+      <div class="skill-buttons">
+        <button class="skill-btn" type="button" data-player="0" data-skill="overdrive" title="3초간 패들 확대 및 가속"><b>Q</b> 오버드라이브</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="turbo" title="공 속도를 즉시 증가"><b>E</b> 터보 볼</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="emp" title="상대를 0.5초 정지"><b>R</b> EMP</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="flip" title="공의 위아래 진행 방향을 반전"><b>F</b> 방향 반전</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="cloak" title="공과 잔상을 1초간 숨김"><b>G</b> 클로킹</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="stasis" title="공을 0.7초 멈춘 뒤 그대로 재출발"><b>H</b> 타임 스톱</button>
+      </div>
+      <div class="charge"><i id="charge1"></i></div>
+    </article>
+    <p>모든 스킬은<br><strong>개별 쿨다운</strong></p>
+    <article class="skill-card pink">
+      <div class="skill-heading"><span>PLAYER 2 SKILLS</span><strong>U · I · O · P · [ · ]</strong></div>
+      <div class="skill-buttons">
+        <button class="skill-btn" type="button" data-player="1" data-skill="overdrive" title="3초간 패들 확대 및 가속"><b>U</b> 오버드라이브</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="turbo" title="공 속도를 즉시 증가"><b>I</b> 터보 볼</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="emp" title="상대를 0.5초 정지"><b>O</b> EMP</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="flip" title="공의 위아래 진행 방향을 반전"><b>P</b> 방향 반전</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="cloak" title="공과 잔상을 1초간 숨김"><b>[</b> 클로킹</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="stasis" title="공을 0.7초 멈춘 뒤 그대로 재출발"><b>]</b> 타임 스톱</button>
+      </div>
+      <div class="charge"><i id="charge2"></i></div>
+    </article>
+  </section>
+  <div class="mobile-controls" aria-label="모바일 조작"><div><button data-key="w" aria-label="1번 선수 위">▲</button><button data-key="s" aria-label="1번 선수 아래">▼</button></div><div><button data-key="ArrowUp" aria-label="2번 선수 위">▲</button><button data-key="ArrowDown" aria-label="2번 선수 아래">▼</button></div></div>
+  <footer><span><i class="cyan-dot"></i> P1: W/S · Q/E/R/F/G/H</span><p>ESC 일시정지 · SPACE 시작</p><span>P2: ↑/↓ · U/I/O/P/[/] <i class="pink-dot"></i></span></footer>
+</main>
+<script src="game.js"></script>
+</body>
+</html>
