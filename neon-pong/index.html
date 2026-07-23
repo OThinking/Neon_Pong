@@ -4,6 +4,7 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#090a13"><title>네온 퐁: 오버드라이브</title><link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="loadout.css">
+  <link rel="stylesheet" href="draft.css">
 </head>
 <body>
 <main class="shell">
@@ -20,15 +21,19 @@
       <p id="overlayText">목표 점수를 고르고 두 선수의 조작키를 확인하세요.</p>
       <label id="scorePicker" class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
       <section id="loadoutPicker" class="loadout-picker" aria-label="스킬 선택">
-        <div><strong>PLAYER 1 · 스킬 3개 선택</strong><div id="loadout1" class="loadout-options"></div></div>
-        <div><strong>PLAYER 2 · 스킬 3개 선택</strong><div id="loadout2" class="loadout-options"></div></div>
+        <div class="draft-player cyan-side"><strong>PLAYER 1 · 선택한 스킬</strong><div id="loadout1" class="draft-picks"></div></div>
+        <div class="draft-center">
+          <strong id="draftTurn">PLAYER 1 선택 차례</strong>
+          <div id="draftPool" class="draft-pool"></div>
+        </div>
+        <div class="draft-player pink-side"><strong>PLAYER 2 · 선택한 스킬</strong><div id="loadout2" class="draft-picks"></div></div>
       </section>
-      <button id="startBtn" type="button">게임 시작 <span>SPACE</span></button>
+      <button id="startBtn" type="button" disabled>스킬 선택 중 <span>3개씩</span></button>
     </div>
   </section>
   <section class="skill-panel" aria-label="스킬 상태">
     <article class="skill-card cyan">
-      <div class="skill-heading"><span>PLAYER 1 SKILLS</span><strong>Q · E · R · F · G · H</strong></div>
+      <div class="skill-heading"><span>PLAYER 1 SKILLS</span><strong>E · R · T</strong></div>
       <div class="skill-buttons">
         <button class="skill-btn" type="button" data-player="0" data-skill="overdrive" title="3초간 패들 확대 및 가속"><b>Q</b> 오버드라이브</button>
         <button class="skill-btn" type="button" data-player="0" data-skill="turbo" title="공 속도를 즉시 증가"><b>E</b> 터보 볼</button>
@@ -41,7 +46,7 @@
     </article>
     <p>모든 스킬은<br><strong>개별 쿨다운</strong></p>
     <article class="skill-card pink">
-      <div class="skill-heading"><span>PLAYER 2 SKILLS</span><strong>U · I · O · P · [ · ]</strong></div>
+      <div class="skill-heading"><span>PLAYER 2 SKILLS</span><strong>I · O · P</strong></div>
       <div class="skill-buttons">
         <button class="skill-btn" type="button" data-player="1" data-skill="overdrive" title="3초간 패들 확대 및 가속"><b>U</b> 오버드라이브</button>
         <button class="skill-btn" type="button" data-player="1" data-skill="turbo" title="공 속도를 즉시 증가"><b>I</b> 터보 볼</button>
@@ -54,7 +59,7 @@
     </article>
   </section>
   <div class="mobile-controls" aria-label="모바일 조작"><div><button data-key="w" aria-label="1번 선수 위">▲</button><button data-key="s" aria-label="1번 선수 아래">▼</button></div><div><button data-key="ArrowUp" aria-label="2번 선수 위">▲</button><button data-key="ArrowDown" aria-label="2번 선수 아래">▼</button></div></div>
-  <footer><span><i class="cyan-dot"></i> P1: W/S · Q/E/R/F/G/H</span><p>ESC 일시정지 · SPACE 시작</p><span>P2: ↑/↓ · U/I/O/P/[/] <i class="pink-dot"></i></span></footer>
+  <footer><span><i class="cyan-dot"></i> P1: W/S · E/R/T 스킬</span><p>ESC 일시정지 · SPACE 시작</p><span>P2: ↑/↓ · I/O/P 스킬 <i class="pink-dot"></i></span></footer>
 </main>
 <script src="game.js"></script>
 </body>

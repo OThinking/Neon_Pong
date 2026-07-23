@@ -3,6 +3,7 @@ const canvas = $("#game"), ctx = canvas.getContext("2d");
 const overlay = $("#overlay"), title = $("#overlayTitle"), message = $("#overlayText"), tag = $("#overlayTag");
 const startBtn = $("#startBtn"), scorePicker = $("#scorePicker"), targetScore = $("#targetScore"), targetDisplay = $("#targetDisplay");
 const loadoutPicker = $("#loadoutPicker"), loadoutEls = [$("#loadout1"), $("#loadout2")];
+const draftPool = $("#draftPool"), draftTurnEl = $("#draftTurn");
 const scoreEls = [$("#score1"), $("#score2")], soundBtn = $("#soundBtn");
 const skillBtns = [...document.querySelectorAll("[data-player][data-skill]")], charges = [$("#charge1"), $("#charge2")];
 const W = canvas.width, H = canvas.height, keys = {}, particles = [];
@@ -16,7 +17,10 @@ const SKILLS = {
   stasis: { label: "타임 스톱", cooldown: 7000, keys: ["H", "]"] }
 };
 const SKILL_COOLDOWNS = Object.fromEntries(Object.entries(SKILLS).map(([id, skill]) => [id, skill.cooldown]));
+const PLAYER_SKILL_KEYS = [["E", "R", "T"], ["I", "O", "P"]];
 let selectedSkills = [new Set(), new Set()];
+let skillKeyMaps = [{}, {}];
+let draftPicks = [[], []], draftStarter = 0, draftPickCount = 0;
 let scores = [0, 0], state = "ready", countdown = 0, winScore = 7, soundOn = true, audio;
 
 for (let i = 1; i <= 10; i++) {
@@ -25,40 +29,70 @@ for (let i = 1; i <= 10; i++) {
   targetScore.append(option);
 }
 
-function updateLoadoutInputs(player) {
-  const inputs = [...loadoutEls[player].querySelectorAll("input")];
-  const chosen = inputs.filter((input) => input.checked).length;
-  inputs.forEach((input) => { input.disabled = chosen === 3 && !input.checked; });
-}
-
-Object.entries(SKILLS).forEach(([id, skill], index) => {
-  loadoutEls.forEach((container, player) => {
-    const label = document.createElement("label");
-    label.className = "loadout-option";
-    const input = document.createElement("input");
-    input.type = "checkbox"; input.value = id; input.checked = index < 3;
-    input.addEventListener("change", () => updateLoadoutInputs(player));
-    label.append(input, document.createTextNode(`${skill.keys[player]} ${skill.label}`));
-    container.append(label);
-  });
-});
-updateLoadoutInputs(0); updateLoadoutInputs(1);
-
-function applyLoadouts() {
-  const next = loadoutEls.map((container) =>
-    new Set([...container.querySelectorAll("input:checked")].map((input) => input.value))
+function applyDraft() {
+  if (draftPickCount !== 6 || draftPicks.some((picks) => picks.length !== 3)) return false;
+  selectedSkills = draftPicks.map((picks) => new Set(picks));
+  skillKeyMaps = draftPicks.map((picks, player) =>
+    Object.fromEntries(picks.map((skill, index) => [skill, PLAYER_SKILL_KEYS[player][index]]))
   );
-  if (next.some((skills) => skills.size !== 3)) {
-    message.textContent = "각 플레이어가 스킬을 정확히 3개씩 선택해야 합니다.";
-    return false;
-  }
-  selectedSkills = next;
   skillBtns.forEach((button) => {
     button.hidden = !selectedSkills[Number(button.dataset.player)].has(button.dataset.skill);
   });
   return true;
 }
-applyLoadouts();
+
+function renderDraft() {
+  const currentPlayer = (draftStarter + draftPickCount) % 2;
+  loadoutEls.forEach((container, player) => {
+    container.replaceChildren();
+    draftPicks[player].forEach((id, index) => {
+      const pick = document.createElement("span");
+      pick.className = "draft-pick";
+      pick.textContent = `${PLAYER_SKILL_KEYS[player][index]} · ${SKILLS[id].label}`;
+      container.append(pick);
+    });
+    if (!draftPicks[player].length) {
+      const empty = document.createElement("span");
+      empty.className = "draft-empty"; empty.textContent = "아직 선택 없음";
+      container.append(empty);
+    }
+  });
+  [...draftPool.children].forEach((button) => {
+    button.disabled = draftPicks.some((picks) => picks.includes(button.dataset.skill));
+  });
+  const complete = draftPickCount === 6;
+  draftTurnEl.textContent = complete ? "드래프트 완료!" : `PLAYER ${currentPlayer + 1} 선택 차례 · ${draftPickCount + 1}/6`;
+  message.textContent = complete
+    ? "스킬 배분이 끝났습니다. 경기를 시작하세요!"
+    : `PLAYER ${currentPlayer + 1}이 원하는 스킬 하나를 선택하세요.`;
+  startBtn.disabled = !complete;
+  startBtn.innerHTML = complete ? '게임 시작 <span>SPACE</span>' : '스킬 선택 중 <span>3개씩</span>';
+  if (complete) applyDraft();
+}
+
+function chooseDraftSkill(skill) {
+  if (draftPickCount >= 6 || draftPicks.some((picks) => picks.includes(skill))) return;
+  const currentPlayer = (draftStarter + draftPickCount) % 2;
+  draftPicks[currentPlayer].push(skill);
+  draftPickCount++;
+  tone(currentPlayer === 0 ? 620 : 720, .08);
+  renderDraft();
+}
+
+function beginDraft(firstPlayer) {
+  draftStarter = firstPlayer;
+  draftPickCount = 0;
+  draftPicks = [[], []];
+  draftPool.replaceChildren();
+  Object.entries(SKILLS).forEach(([id, skill]) => {
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "draft-choice";
+    button.dataset.skill = id; button.textContent = skill.label;
+    button.addEventListener("click", () => chooseDraftSkill(id));
+    draftPool.append(button);
+  });
+  renderDraft();
+}
 
 const paddles = [
   { x: 42, y: H / 2 - 55, w: 15, h: 110, baseH: 110, color: "#42f5e9", activeUntil: 0, frozenUntil: 0, cooldowns: {} },
@@ -95,7 +129,10 @@ function burst(x, y, color, count = 18) {
 function startGame() {
   const isResume = state === "paused";
   if (state === "ready" || state === "won") {
-    if (!applyLoadouts()) return;
+    if (!applyDraft()) {
+      message.textContent = "6개 스킬을 모두 한 개씩 선택한 뒤 시작할 수 있습니다.";
+      return;
+    }
     winScore = Number(targetScore.value); targetDisplay.textContent = winScore;
     scores = [0, 0]; scoreEls.forEach((el) => el.textContent = "0");
     paddles.forEach((p) => { p.activeUntil = 0; p.frozenUntil = 0; p.cooldowns = {}; p.h = p.baseH; });
@@ -114,9 +151,11 @@ function showOverlay(kind) {
     tag.textContent = "GAME PAUSED"; title.textContent = "잠시 멈춤";
     message.textContent = "ESC 또는 SPACE로 경기를 계속하세요."; startBtn.innerHTML = "계속하기 <span>SPACE</span>";
   } else {
-    const winner = scores[0] > scores[1] ? "PLAYER 1" : "PLAYER 2";
-    tag.textContent = "MATCH COMPLETE"; title.textContent = `${winner} 승리!`;
-    message.textContent = `${scores[0]} : ${scores[1]} — 멋진 경기였어요.`; startBtn.innerHTML = "다시 대결 <span>SPACE</span>";
+    const winnerIndex = scores[0] > scores[1] ? 0 : 1;
+    const loserIndex = 1 - winnerIndex;
+    tag.textContent = `PLAYER ${loserIndex + 1} PICKS FIRST`;
+    title.textContent = `PLAYER ${winnerIndex + 1} 승리!`;
+    beginDraft(loserIndex);
   }
 }
 
@@ -182,7 +221,7 @@ function updateSkills(now) {
       const remaining = Math.max(0, (p.cooldowns[skill] || 0) - now);
       button.disabled = remaining > 0 || state !== "playing";
       const label = SKILLS[skill].label;
-      const key = SKILLS[skill].keys[i];
+      const key = skillKeyMaps[i][skill] || "·";
       button.innerHTML = remaining ? `<b>${Math.ceil(remaining / 1000)}s</b> ${label}` : `<b>${key}</b> ${label}`;
     });
     const cooldownRatios = Object.keys(SKILL_COOLDOWNS).map((skill) =>
@@ -269,13 +308,12 @@ function loop(now) { update(now); draw(); requestAnimationFrame(loop); }
 window.addEventListener("keydown", (e) => {
   if (["ArrowUp", "ArrowDown", " "].includes(e.key)) e.preventDefault();
   const key = e.key.length === 1 ? e.key.toLowerCase() : e.key; keys[key] = true;
-  const skillKeys = {
-    q: [0, "overdrive"], e: [0, "turbo"], r: [0, "emp"], f: [0, "flip"],
-    g: [0, "cloak"], h: [0, "stasis"],
-    u: [1, "overdrive"], i: [1, "turbo"], o: [1, "emp"], p: [1, "flip"],
-    "[": [1, "cloak"], "]": [1, "stasis"]
-  };
-  if (!e.repeat && skillKeys[key]) activateSkill(...skillKeys[key]);
+  const skillSlots = { e: [0, 0], r: [0, 1], t: [0, 2], i: [1, 0], o: [1, 1], p: [1, 2] };
+  if (!e.repeat && skillSlots[key]) {
+    const [player, slot] = skillSlots[key];
+    const skill = draftPicks[player][slot];
+    if (skill) activateSkill(player, skill);
+  }
   if (e.key === " " && state !== "playing") startGame();
   if (e.key === "Escape") {
     if (state === "playing") { state = "paused"; showOverlay("pause"); }
@@ -292,4 +330,5 @@ document.querySelectorAll("[data-key]").forEach((btn) => {
   ["pointerdown", "pointerenter"].forEach((evt) => btn.addEventListener(evt, (e) => { if (e.buttons || evt === "pointerdown") { keys[key] = true; e.preventDefault(); } }));
   ["pointerup", "pointerleave", "pointercancel"].forEach((evt) => btn.addEventListener(evt, () => keys[key] = false));
 });
+beginDraft(0);
 updateSkills(performance.now()); requestAnimationFrame(loop);
