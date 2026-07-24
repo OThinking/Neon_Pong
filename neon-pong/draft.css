@@ -20,11 +20,35 @@
 .cyan-side > strong { color: var(--cyan); }
 .pink-side > strong { color: var(--pink); }
 .draft-center > strong { color: #fff; text-align: center; }
+.draft-center > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #c8cad6;
+  font-size: 8px;
+  font-weight: 900;
+  text-align: center;
+}
+.draft-player > small {
+  display: block;
+  margin: 6px 0 3px;
+  color: #65687c;
+  font-size: 6px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
 .draft-picks {
   display: grid;
   gap: 4px;
 }
-.draft-pick {
+.draft-bans {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 17px;
+}
+.draft-pick,
+.draft-ban {
   padding: 5px;
   border: 1px solid #2d3044;
   border-radius: 4px;
@@ -33,6 +57,14 @@
   font-size: 7px;
   font-weight: 900;
   text-align: center;
+}
+.draft-ban {
+  padding: 3px 5px;
+  color: #777a8e;
+  background: #121421;
+  font-size: 6px;
+  font-weight: 900;
+  text-decoration: line-through;
 }
 .cyan-side .draft-pick { border-color: #42f5e955; color: var(--cyan); }
 .pink-side .draft-pick { border-color: #ff4fa355; color: var(--pink); }
@@ -55,13 +87,18 @@
   white-space: nowrap;
 }
 .draft-choice:hover { border-color: var(--cyan); color: #fff; background: #24273a; }
-.draft-choice:disabled { opacity: .2; cursor: default; text-decoration: line-through; }
+.draft-choice[data-phase="ban"]:hover { border-color: #ff657d; color: #ff9aaa; }
+.draft-choice.banned { opacity: .14; border-color: #ff657d; cursor: default; text-decoration: line-through; }
+.draft-choice.picked { opacity: .2; cursor: default; }
+.draft-choice:disabled { pointer-events: none; }
 #startBtn:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
 
 @media (max-width: 700px) {
   .loadout-picker { grid-template-columns: 1fr 1.4fr 1fr; }
   .draft-player, .draft-center { padding: 4px 3px; }
-  .draft-player > strong, .draft-center > strong { font-size: 6px; margin-bottom: 3px; }
+  .draft-player > strong, .draft-center > strong, .draft-center > span { font-size: 6px; margin-bottom: 3px; }
+  .draft-player > small { margin-block: 3px 2px; font-size: 5px; }
   .draft-pick, .draft-choice { padding: 3px 1px; font-size: 6px; }
-  .draft-pool { grid-template-columns: 1fr 1fr; gap: 2px; }
+  .draft-ban { padding: 2px 3px; font-size: 5px; }
+  .draft-pool { grid-template-columns: repeat(3, 1fr); gap: 2px; }
 }

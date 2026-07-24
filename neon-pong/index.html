@@ -21,14 +21,23 @@
       <p id="overlayText">목표 점수를 고르고 두 선수의 조작키를 확인하세요.</p>
       <label id="scorePicker" class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
       <section id="loadoutPicker" class="loadout-picker" aria-label="스킬 선택">
-        <div class="draft-player cyan-side"><strong>PLAYER 1 · 선택한 스킬</strong><div id="loadout1" class="draft-picks"></div></div>
+        <div class="draft-player cyan-side">
+          <strong>PLAYER 1</strong>
+          <small>밴</small><div id="bans1" class="draft-bans"></div>
+          <small>선택한 스킬</small><div id="loadout1" class="draft-picks"></div>
+        </div>
         <div class="draft-center">
-          <strong id="draftTurn">PLAYER 1 선택 차례</strong>
+          <strong id="draftPhase">BAN PHASE · 0/6</strong>
+          <span id="draftTurn">PLAYER 1 밴 차례</span>
           <div id="draftPool" class="draft-pool"></div>
         </div>
-        <div class="draft-player pink-side"><strong>PLAYER 2 · 선택한 스킬</strong><div id="loadout2" class="draft-picks"></div></div>
+        <div class="draft-player pink-side">
+          <strong>PLAYER 2</strong>
+          <small>밴</small><div id="bans2" class="draft-bans"></div>
+          <small>선택한 스킬</small><div id="loadout2" class="draft-picks"></div>
+        </div>
       </section>
-      <button id="startBtn" type="button" disabled>스킬 선택 중 <span>3개씩</span></button>
+      <button id="startBtn" type="button" disabled>밴 진행 중 <span>3개씩</span></button>
     </div>
   </section>
   <section class="skill-panel" aria-label="스킬 상태">
@@ -41,6 +50,12 @@
         <button class="skill-btn" type="button" data-player="0" data-skill="flip" title="공의 위아래 진행 방향을 반전"><b>F</b> 방향 반전</button>
         <button class="skill-btn" type="button" data-player="0" data-skill="cloak" title="공과 잔상을 1초간 숨김"><b>G</b> 클로킹</button>
         <button class="skill-btn" type="button" data-player="0" data-skill="stasis" title="공을 0.7초 멈춘 뒤 그대로 재출발"><b>H</b> 타임 스톱</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="blink" title="패들을 공의 높이로 순간이동"><b>·</b> 블링크</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="reverse" title="상대 조작을 1.5초간 반전"><b>·</b> 리버스 기어</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="curve" title="공을 패들 방향으로 1초간 휘게 함"><b>·</b> 커브 샷</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="deflector" title="2초간 한 번 막아주는 에너지 방벽"><b>·</b> 디플렉터</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="minimize" title="상대 패들을 2초간 절반으로 축소"><b>·</b> 미니멀라이즈</button>
+        <button class="skill-btn" type="button" data-player="0" data-skill="afterimage" title="1.5초간 가짜 공 2개 생성"><b>·</b> 애프터이미지</button>
       </div>
       <div class="charge"><i id="charge1"></i></div>
     </article>
@@ -54,6 +69,12 @@
         <button class="skill-btn" type="button" data-player="1" data-skill="flip" title="공의 위아래 진행 방향을 반전"><b>P</b> 방향 반전</button>
         <button class="skill-btn" type="button" data-player="1" data-skill="cloak" title="공과 잔상을 1초간 숨김"><b>[</b> 클로킹</button>
         <button class="skill-btn" type="button" data-player="1" data-skill="stasis" title="공을 0.7초 멈춘 뒤 그대로 재출발"><b>]</b> 타임 스톱</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="blink" title="패들을 공의 높이로 순간이동"><b>·</b> 블링크</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="reverse" title="상대 조작을 1.5초간 반전"><b>·</b> 리버스 기어</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="curve" title="공을 패들 방향으로 1초간 휘게 함"><b>·</b> 커브 샷</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="deflector" title="2초간 한 번 막아주는 에너지 방벽"><b>·</b> 디플렉터</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="minimize" title="상대 패들을 2초간 절반으로 축소"><b>·</b> 미니멀라이즈</button>
+        <button class="skill-btn" type="button" data-player="1" data-skill="afterimage" title="1.5초간 가짜 공 2개 생성"><b>·</b> 애프터이미지</button>
       </div>
       <div class="charge"><i id="charge2"></i></div>
     </article>

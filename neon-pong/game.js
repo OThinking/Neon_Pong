@@ -3,7 +3,8 @@ const canvas = $("#game"), ctx = canvas.getContext("2d");
 const overlay = $("#overlay"), title = $("#overlayTitle"), message = $("#overlayText"), tag = $("#overlayTag");
 const startBtn = $("#startBtn"), scorePicker = $("#scorePicker"), targetScore = $("#targetScore"), targetDisplay = $("#targetDisplay");
 const loadoutPicker = $("#loadoutPicker"), loadoutEls = [$("#loadout1"), $("#loadout2")];
-const draftPool = $("#draftPool"), draftTurnEl = $("#draftTurn");
+const banEls = [$("#bans1"), $("#bans2")], draftPool = $("#draftPool");
+const draftPhaseEl = $("#draftPhase"), draftTurnEl = $("#draftTurn");
 const scoreEls = [$("#score1"), $("#score2")], soundBtn = $("#soundBtn");
 const skillBtns = [...document.querySelectorAll("[data-player][data-skill]")], charges = [$("#charge1"), $("#charge2")];
 const W = canvas.width, H = canvas.height, keys = {}, particles = [];
@@ -14,13 +15,19 @@ const SKILLS = {
   emp: { label: "EMP", cooldown: 7000, keys: ["R", "O"] },
   flip: { label: "방향 반전", cooldown: 7000, keys: ["F", "P"] },
   cloak: { label: "클로킹", cooldown: 7000, keys: ["G", "["] },
-  stasis: { label: "타임 스톱", cooldown: 7000, keys: ["H", "]"] }
+  stasis: { label: "타임 스톱", cooldown: 7000, keys: ["H", "]"] },
+  blink: { label: "블링크", cooldown: 8000 },
+  reverse: { label: "리버스 기어", cooldown: 9000 },
+  curve: { label: "커브 샷", cooldown: 7000 },
+  deflector: { label: "디플렉터", cooldown: 10000 },
+  minimize: { label: "미니멀라이즈", cooldown: 9000 },
+  afterimage: { label: "애프터이미지", cooldown: 8000 }
 };
 const SKILL_COOLDOWNS = Object.fromEntries(Object.entries(SKILLS).map(([id, skill]) => [id, skill.cooldown]));
 const PLAYER_SKILL_KEYS = [["E", "R", "T"], ["I", "O", "P"]];
 let selectedSkills = [new Set(), new Set()];
 let skillKeyMaps = [{}, {}];
-let draftPicks = [[], []], draftStarter = 0, draftPickCount = 0;
+let draftPicks = [[], []], draftBans = [[], []], draftStarter = 0, draftStep = 0, draftPhase = "ban";
 let scores = [0, 0], state = "ready", countdown = 0, winScore = 7, soundOn = true, audio;
 
 for (let i = 1; i <= 10; i++) {
@@ -30,7 +37,7 @@ for (let i = 1; i <= 10; i++) {
 }
 
 function applyDraft() {
-  if (draftPickCount !== 6 || draftPicks.some((picks) => picks.length !== 3)) return false;
+  if (draftPhase !== "complete" || draftPicks.some((picks) => picks.length !== 3)) return false;
   selectedSkills = draftPicks.map((picks) => new Set(picks));
   skillKeyMaps = draftPicks.map((picks, player) =>
     Object.fromEntries(picks.map((skill, index) => [skill, PLAYER_SKILL_KEYS[player][index]]))
@@ -42,7 +49,8 @@ function applyDraft() {
 }
 
 function renderDraft() {
-  const currentPlayer = (draftStarter + draftPickCount) % 2;
+  const complete = draftPhase === "complete";
+  const currentPlayer = (draftStarter + draftStep) % 2;
   loadoutEls.forEach((container, player) => {
     container.replaceChildren();
     draftPicks[player].forEach((id, index) => {
@@ -56,33 +64,77 @@ function renderDraft() {
       empty.className = "draft-empty"; empty.textContent = "아직 선택 없음";
       container.append(empty);
     }
+    banEls[player].replaceChildren();
+    draftBans[player].forEach((id) => {
+      const ban = document.createElement("span");
+      ban.className = "draft-ban";
+      ban.textContent = SKILLS[id].label;
+      banEls[player].append(ban);
+    });
+    if (!draftBans[player].length) {
+      const empty = document.createElement("span");
+      empty.className = "draft-empty"; empty.textContent = "아직 밴 없음";
+      banEls[player].append(empty);
+    }
   });
   [...draftPool.children].forEach((button) => {
-    button.disabled = draftPicks.some((picks) => picks.includes(button.dataset.skill));
+    const id = button.dataset.skill;
+    const banned = draftBans.some((bans) => bans.includes(id));
+    const picked = draftPicks.some((picks) => picks.includes(id));
+    button.disabled = banned || picked || complete;
+    button.classList.toggle("banned", banned);
+    button.classList.toggle("picked", picked);
+    button.dataset.phase = draftPhase;
   });
-  const complete = draftPickCount === 6;
-  draftTurnEl.textContent = complete ? "드래프트 완료!" : `PLAYER ${currentPlayer + 1} 선택 차례 · ${draftPickCount + 1}/6`;
-  message.textContent = complete
-    ? "스킬 배분이 끝났습니다. 경기를 시작하세요!"
-    : `PLAYER ${currentPlayer + 1}이 원하는 스킬 하나를 선택하세요.`;
+  if (draftPhase === "ban") {
+    draftPhaseEl.textContent = `BAN PHASE · ${draftStep}/6`;
+    draftTurnEl.textContent = `PLAYER ${currentPlayer + 1} 밴 차례`;
+    message.textContent = `PLAYER ${currentPlayer + 1}이 제외할 스킬을 선택하세요.`;
+  } else if (draftPhase === "pick") {
+    draftPhaseEl.textContent = `PICK PHASE · ${draftStep}/6`;
+    draftTurnEl.textContent = `PLAYER ${currentPlayer + 1} 선택 차례`;
+    message.textContent = `PLAYER ${currentPlayer + 1}이 사용할 스킬을 선택하세요.`;
+  } else {
+    draftPhaseEl.textContent = "DRAFT COMPLETE";
+    draftTurnEl.textContent = "밴과 선택 완료!";
+    message.textContent = "스킬 배분이 끝났습니다. 경기를 시작하세요!";
+  }
   startBtn.disabled = !complete;
-  startBtn.innerHTML = complete ? '게임 시작 <span>SPACE</span>' : '스킬 선택 중 <span>3개씩</span>';
+  startBtn.innerHTML = complete
+    ? '게임 시작 <span>SPACE</span>'
+    : draftPhase === "ban" ? '밴 진행 중 <span>3개씩</span>' : '스킬 선택 중 <span>3개씩</span>';
   if (complete) applyDraft();
 }
 
 function chooseDraftSkill(skill) {
-  if (draftPickCount >= 6 || draftPicks.some((picks) => picks.includes(skill))) return;
-  const currentPlayer = (draftStarter + draftPickCount) % 2;
-  draftPicks[currentPlayer].push(skill);
-  draftPickCount++;
+  if (draftPhase === "complete" ||
+      draftBans.some((bans) => bans.includes(skill)) ||
+      draftPicks.some((picks) => picks.includes(skill))) return;
+  const currentPlayer = (draftStarter + draftStep) % 2;
+  if (draftPhase === "ban") draftBans[currentPlayer].push(skill);
+  else draftPicks[currentPlayer].push(skill);
+  draftStep++;
   tone(currentPlayer === 0 ? 620 : 720, .08);
+  if (draftStep === 6) {
+    if (draftPhase === "ban") {
+      draftPhase = "pick";
+      draftStep = 0;
+    } else {
+      draftPhase = "complete";
+    }
+  }
   renderDraft();
 }
 
 function beginDraft(firstPlayer) {
   draftStarter = firstPlayer;
-  draftPickCount = 0;
+  draftStep = 0;
+  draftPhase = "ban";
   draftPicks = [[], []];
+  draftBans = [[], []];
+  selectedSkills = [new Set(), new Set()];
+  skillKeyMaps = [{}, {}];
+  skillBtns.forEach((button) => button.hidden = true);
   draftPool.replaceChildren();
   Object.entries(SKILLS).forEach(([id, skill]) => {
     const button = document.createElement("button");
@@ -95,12 +147,13 @@ function beginDraft(firstPlayer) {
 }
 
 const paddles = [
-  { x: 42, y: H / 2 - 55, w: 15, h: 110, baseH: 110, color: "#42f5e9", activeUntil: 0, frozenUntil: 0, cooldowns: {} },
-  { x: W - 57, y: H / 2 - 55, w: 15, h: 110, baseH: 110, color: "#ff4fa3", activeUntil: 0, frozenUntil: 0, cooldowns: {} }
+  { x: 42, y: H / 2 - 55, w: 15, h: 110, baseH: 110, color: "#42f5e9", activeUntil: 0, frozenUntil: 0, reversedUntil: 0, shrunkenUntil: 0, shieldUntil: 0, cooldowns: {} },
+  { x: W - 57, y: H / 2 - 55, w: 15, h: 110, baseH: 110, color: "#ff4fa3", activeUntil: 0, frozenUntil: 0, reversedUntil: 0, shrunkenUntil: 0, shieldUntil: 0, cooldowns: {} }
 ];
 const ball = {
   x: W / 2, y: H / 2, r: 9, vx: 0, vy: 0, trail: [],
-  turboUntil: 0, invisibleUntil: 0, stasisUntil: 0, savedVx: 0, savedVy: 0
+  turboUntil: 0, invisibleUntil: 0, stasisUntil: 0, curveUntil: 0, curveForce: 0,
+  decoyUntil: 0, savedVx: 0, savedVy: 0
 };
 
 function tone(freq, duration = .06) {
@@ -116,6 +169,7 @@ function tone(freq, duration = .06) {
 function resetBall(direction = Math.random() > .5 ? 1 : -1) {
   ball.x = W / 2; ball.y = H / 2; ball.trail = [];
   ball.invisibleUntil = 0; ball.stasisUntil = 0; ball.savedVx = 0; ball.savedVy = 0;
+  ball.curveUntil = 0; ball.curveForce = 0; ball.decoyUntil = 0;
   const angle = Math.random() * .7 - .35;
   ball.vx = Math.cos(angle) * 5.3 * direction; ball.vy = Math.sin(angle) * 5.3; countdown = 70;
 }
@@ -130,12 +184,15 @@ function startGame() {
   const isResume = state === "paused";
   if (state === "ready" || state === "won") {
     if (!applyDraft()) {
-      message.textContent = "6개 스킬을 모두 한 개씩 선택한 뒤 시작할 수 있습니다.";
+      message.textContent = "밴 3개씩과 스킬 선택 3개씩을 마친 뒤 시작할 수 있습니다.";
       return;
     }
     winScore = Number(targetScore.value); targetDisplay.textContent = winScore;
     scores = [0, 0]; scoreEls.forEach((el) => el.textContent = "0");
-    paddles.forEach((p) => { p.activeUntil = 0; p.frozenUntil = 0; p.cooldowns = {}; p.h = p.baseH; });
+    paddles.forEach((p) => {
+      p.activeUntil = 0; p.frozenUntil = 0; p.reversedUntil = 0;
+      p.shrunkenUntil = 0; p.shieldUntil = 0; p.cooldowns = {}; p.h = p.baseH;
+    });
   }
   state = "playing"; overlay.classList.add("hidden");
   if (!isResume) {
@@ -157,6 +214,14 @@ function showOverlay(kind) {
     title.textContent = `PLAYER ${winnerIndex + 1} 승리!`;
     beginDraft(loserIndex);
   }
+}
+
+function syncPaddleSize(p, now) {
+  const targetH = p.baseH * (now < p.activeUntil ? 1.75 : 1) * (now < p.shrunkenUntil ? .5 : 1);
+  if (p.h === targetH) return;
+  const center = p.y + p.h / 2;
+  p.h = targetH;
+  p.y = Math.max(14, Math.min(H - p.h - 14, center - p.h / 2));
 }
 
 function activateSkill(player, skill) {
@@ -205,16 +270,38 @@ function activateSkill(player, skill) {
     }
     ball.stasisUntil = Math.max(ball.stasisUntil, now + 700);
     burst(ball.x, ball.y, "#ffffff", 24); tone(110, .4);
+  } else if (skill === "blink") {
+    p.y = Math.max(14, Math.min(H - p.h - 14, ball.y - p.h / 2));
+    burst(p.x + p.w / 2, p.y + p.h / 2, p.color, 34); tone(1280, .14);
+  } else if (skill === "reverse") {
+    const rival = paddles[1 - player];
+    rival.reversedUntil = Math.max(rival.reversedUntil, now + 1500);
+    burst(rival.x + rival.w / 2, rival.y + rival.h / 2, "#ffb04a", 30); tone(210, .3);
+  } else if (skill === "curve") {
+    const paddleCenter = p.y + p.h / 2;
+    const delta = paddleCenter - ball.y;
+    ball.curveForce = Math.abs(delta) < 10 ? (ball.vy >= 0 ? -.24 : .24) : Math.sign(delta) * .24;
+    ball.curveUntil = now + 1000;
+    ball.turboUntil = now + 1000;
+    burst(ball.x, ball.y, "#9dff74", 28); tone(1040, .22);
+  } else if (skill === "deflector") {
+    p.shieldUntil = now + 2000;
+    burst(player === 0 ? 24 : W - 24, H / 2, p.color, 38); tone(360, .3);
+  } else if (skill === "minimize") {
+    const rival = paddles[1 - player];
+    rival.shrunkenUntil = Math.max(rival.shrunkenUntil, now + 2000);
+    syncPaddleSize(rival, now);
+    burst(rival.x + rival.w / 2, rival.y + rival.h / 2, "#d37cff", 34); tone(150, .28);
+  } else if (skill === "afterimage") {
+    ball.decoyUntil = Math.max(ball.decoyUntil, now + 1500);
+    burst(ball.x, ball.y, "#77ddff", 24); tone(820, .25);
   }
 }
 
 function updateSkills(now) {
   paddles.forEach((p, i) => {
     const active = now < p.activeUntil;
-    if (!active && p.h !== p.baseH) {
-      const center = p.y + p.h / 2;
-      p.h = p.baseH; p.y = Math.max(14, Math.min(H - p.h - 14, center - p.h / 2));
-    }
+    syncPaddleSize(p, now);
     const playerButtons = skillBtns.filter((button) => Number(button.dataset.player) === i);
     playerButtons.forEach((button) => {
       const skill = button.dataset.skill;
@@ -231,6 +318,8 @@ function updateSkills(now) {
     const card = playerButtons[0].closest(".skill-card");
     card.classList.toggle("active", active);
     card.classList.toggle("frozen", now < p.frozenUntil);
+    card.classList.toggle("reversed", now < p.reversedUntil);
+    card.classList.toggle("shielded", now < p.shieldUntil);
   });
 }
 
@@ -243,8 +332,11 @@ function update(now) {
   paddles.forEach((p, i) => {
     if (now < p.frozenUntil) return;
     const speed = now < p.activeUntil ? 9.4 : 7.2;
-    if (i ? keys.ArrowUp : keys.w) p.y -= speed;
-    if (i ? keys.ArrowDown : keys.s) p.y += speed;
+    const upPressed = i ? keys.ArrowUp : keys.w;
+    const downPressed = i ? keys.ArrowDown : keys.s;
+    const reversed = now < p.reversedUntil;
+    if (reversed ? downPressed : upPressed) p.y -= speed;
+    if (reversed ? upPressed : downPressed) p.y += speed;
     p.y = Math.max(14, Math.min(H - p.h - 14, p.y));
   });
   if (ball.stasisUntil && now >= ball.stasisUntil && ball.vx === 0 && ball.vy === 0) {
@@ -254,6 +346,8 @@ function update(now) {
   }
   if (countdown-- > 0) return;
   if (now < ball.stasisUntil) return;
+  if (now < ball.curveUntil) ball.vy = Math.max(-9, Math.min(9, ball.vy + ball.curveForce));
+  else ball.curveForce = 0;
   ball.trail.unshift({ x: ball.x, y: ball.y }); if (ball.trail.length > 12) ball.trail.pop();
   ball.x += ball.vx; ball.y += ball.vy;
   if (ball.y - ball.r < 10 || ball.y + ball.r > H - 10) {
@@ -268,6 +362,18 @@ function update(now) {
       ball.x = i === 0 ? p.x + p.w + ball.r : p.x - ball.r;
       burst(ball.x, ball.y, p.color); tone(420 + nextSpeed * 25);
     }
+  });
+  paddles.forEach((p, i) => {
+    if (now >= p.shieldUntil) return;
+    const shieldX = i === 0 ? 25 : W - 25;
+    const hitsShield = i === 0
+      ? ball.vx < 0 && ball.x - ball.r <= shieldX
+      : ball.vx > 0 && ball.x + ball.r >= shieldX;
+    if (!hitsShield) return;
+    ball.vx = Math.abs(ball.vx) * (i === 0 ? 1 : -1);
+    ball.x = i === 0 ? shieldX + ball.r : shieldX - ball.r;
+    p.shieldUntil = 0;
+    burst(shieldX, ball.y, p.color, 42); tone(720, .25);
   });
   if (ball.x < -30 || ball.x > W + 30) {
     const scorer = ball.x < 0 ? 1 : 0;
@@ -285,15 +391,41 @@ function draw() {
   ctx.strokeStyle = "#282a3d"; ctx.lineWidth = 2; ctx.setLineDash([9, 13]);
   ctx.beginPath(); ctx.moveTo(W / 2, 24); ctx.lineTo(W / 2, H - 24); ctx.stroke();
   ctx.setLineDash([]); ctx.beginPath(); ctx.arc(W / 2, H / 2, 70, 0, Math.PI * 2); ctx.stroke();
-  paddles.forEach((p) => { ctx.shadowBlur = 22; ctx.shadowColor = p.color; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.w, p.h); ctx.shadowBlur = 0; });
-  const ballVisible = performance.now() >= ball.invisibleUntil;
+  const now = performance.now();
+  paddles.forEach((p, i) => {
+    if (now < p.shieldUntil) {
+      const shieldX = i === 0 ? 25 : W - 25;
+      ctx.globalAlpha = .78 + Math.sin(now / 70) * .18;
+      ctx.strokeStyle = p.color; ctx.lineWidth = 5; ctx.shadowBlur = 24; ctx.shadowColor = p.color;
+      ctx.beginPath(); ctx.moveTo(shieldX, 50); ctx.lineTo(shieldX, H - 50); ctx.stroke();
+      ctx.globalAlpha = 1; ctx.shadowBlur = 0;
+    }
+    ctx.shadowBlur = 22; ctx.shadowColor = p.color; ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.w, p.h); ctx.shadowBlur = 0;
+    if (now < p.reversedUntil) {
+      ctx.strokeStyle = "#ffb04a"; ctx.lineWidth = 3;
+      ctx.strokeRect(p.x - 4, p.y - 4, p.w + 8, p.h + 8);
+    }
+  });
+  const ballVisible = now >= ball.invisibleUntil;
   if (ballVisible) {
     ball.trail.forEach((t, i) => {
       ctx.globalAlpha = (1 - i / ball.trail.length) * .3; ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(t.x, t.y, ball.r * (1 - i / 18), 0, Math.PI * 2); ctx.fill();
     });
-    ctx.globalAlpha = 1; ctx.shadowBlur = 22; ctx.shadowColor = performance.now() < ball.turboUntil ? "#ffe66d" : "#fff";
-    ctx.fillStyle = performance.now() < ball.turboUntil ? "#ffe66d" : "#fff";
+    if (now < ball.decoyUntil) {
+      const decoyYs = [
+        Math.max(20, Math.min(H - 20, H - ball.y)),
+        Math.max(20, Math.min(H - 20, ball.y + Math.sin(now / 180) * 150))
+      ];
+      ctx.shadowBlur = 22; ctx.shadowColor = "#fff"; ctx.fillStyle = "#fff";
+      decoyYs.forEach((y) => {
+        ctx.beginPath(); ctx.arc(ball.x, y, ball.r, 0, Math.PI * 2); ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+    }
+    ctx.globalAlpha = 1; ctx.shadowBlur = 22; ctx.shadowColor = now < ball.turboUntil ? "#ffe66d" : "#fff";
+    ctx.fillStyle = now < ball.turboUntil ? "#ffe66d" : "#fff";
     ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
   }
   particles.forEach((p) => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
