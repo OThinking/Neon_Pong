@@ -1,7 +1,8 @@
 const $ = (selector) => document.querySelector(selector);
 const canvas = $("#game"), ctx = canvas.getContext("2d");
 const overlay = $("#overlay"), title = $("#overlayTitle"), message = $("#overlayText"), tag = $("#overlayTag");
-const startBtn = $("#startBtn"), scorePicker = $("#scorePicker"), targetScore = $("#targetScore"), targetDisplay = $("#targetDisplay");
+const startBtn = $("#startBtn"), draftSettings = $("#draftSettings"), targetScore = $("#targetScore"), targetDisplay = $("#targetDisplay");
+const banCountSelect = $("#banCount");
 const loadoutPicker = $("#loadoutPicker"), loadoutEls = [$("#loadout1"), $("#loadout2")];
 const banEls = [$("#bans1"), $("#bans2")], draftPool = $("#draftPool");
 const draftPhaseEl = $("#draftPhase"), draftTurnEl = $("#draftTurn");
@@ -14,7 +15,7 @@ const SKILLS = {
   turbo: { label: "터보 볼", cooldown: 5000, keys: ["E", "I"] },
   emp: { label: "EMP", cooldown: 7000, keys: ["R", "O"] },
   flip: { label: "방향 반전", cooldown: 7000, keys: ["F", "P"] },
-  cloak: { label: "클로킹", cooldown: 7000, keys: ["G", "["] },
+  cloak: { label: "클로킹", cooldown: 10000, keys: ["G", "["] },
   stasis: { label: "타임 스톱", cooldown: 7000, keys: ["H", "]"] },
   blink: { label: "블링크", cooldown: 8000 },
   reverse: { label: "리버스 기어", cooldown: 9000 },
@@ -28,12 +29,19 @@ const PLAYER_SKILL_KEYS = [["E", "R", "T"], ["I", "O", "P"]];
 let selectedSkills = [new Set(), new Set()];
 let skillKeyMaps = [{}, {}];
 let draftPicks = [[], []], draftBans = [[], []], draftStarter = 0, draftStep = 0, draftPhase = "ban";
+let banCount = 3;
 let scores = [0, 0], state = "ready", countdown = 0, winScore = 7, soundOn = true, audio;
 
 for (let i = 1; i <= 10; i++) {
   const option = document.createElement("option");
   option.value = i; option.textContent = `${i}점`; option.selected = i === 7;
   targetScore.append(option);
+}
+
+for (let i = 0; i <= 3; i++) {
+  const option = document.createElement("option");
+  option.value = i; option.textContent = `${i}개씩`; option.selected = i === banCount;
+  banCountSelect.append(option);
 }
 
 function applyDraft() {
@@ -51,6 +59,7 @@ function applyDraft() {
 function renderDraft() {
   const complete = draftPhase === "complete";
   const currentPlayer = (draftStarter + draftStep) % 2;
+  const banSteps = banCount * 2;
   loadoutEls.forEach((container, player) => {
     container.replaceChildren();
     draftPicks[player].forEach((id, index) => {
@@ -87,7 +96,7 @@ function renderDraft() {
     button.dataset.phase = draftPhase;
   });
   if (draftPhase === "ban") {
-    draftPhaseEl.textContent = `BAN PHASE · ${draftStep}/6`;
+    draftPhaseEl.textContent = `BAN PHASE · ${draftStep}/${banSteps}`;
     draftTurnEl.textContent = `PLAYER ${currentPlayer + 1} 밴 차례`;
     message.textContent = `PLAYER ${currentPlayer + 1}이 제외할 스킬을 선택하세요.`;
   } else if (draftPhase === "pick") {
@@ -102,7 +111,7 @@ function renderDraft() {
   startBtn.disabled = !complete;
   startBtn.innerHTML = complete
     ? '게임 시작 <span>SPACE</span>'
-    : draftPhase === "ban" ? '밴 진행 중 <span>3개씩</span>' : '스킬 선택 중 <span>3개씩</span>';
+    : draftPhase === "ban" ? `밴 진행 중 <span>${banCount}개씩</span>` : '스킬 선택 중 <span>3개씩</span>';
   if (complete) applyDraft();
 }
 
@@ -115,7 +124,8 @@ function chooseDraftSkill(skill) {
   else draftPicks[currentPlayer].push(skill);
   draftStep++;
   tone(currentPlayer === 0 ? 620 : 720, .08);
-  if (draftStep === 6) {
+  const phaseSteps = draftPhase === "ban" ? banCount * 2 : 6;
+  if (draftStep === phaseSteps) {
     if (draftPhase === "ban") {
       draftPhase = "pick";
       draftStep = 0;
@@ -129,7 +139,7 @@ function chooseDraftSkill(skill) {
 function beginDraft(firstPlayer) {
   draftStarter = firstPlayer;
   draftStep = 0;
-  draftPhase = "ban";
+  draftPhase = banCount === 0 ? "pick" : "ban";
   draftPicks = [[], []];
   draftBans = [[], []];
   selectedSkills = [new Set(), new Set()];
@@ -152,8 +162,9 @@ const paddles = [
 ];
 const ball = {
   x: W / 2, y: H / 2, r: 9, vx: 0, vy: 0, trail: [],
-  turboUntil: 0, invisibleUntil: 0, stasisUntil: 0, curveUntil: 0, curveForce: 0,
-  decoyUntil: 0, savedVx: 0, savedVy: 0
+  turboUntil: 0, invisibleUntil: 0, cloakStartedAt: 0, cloakRevealStep: 0,
+  stasisUntil: 0, curveUntil: 0, curveForce: 0,
+  decoyUntil: 0, decoys: [], savedVx: 0, savedVy: 0
 };
 
 function tone(freq, duration = .06) {
@@ -168,8 +179,9 @@ function tone(freq, duration = .06) {
 
 function resetBall(direction = Math.random() > .5 ? 1 : -1) {
   ball.x = W / 2; ball.y = H / 2; ball.trail = [];
-  ball.invisibleUntil = 0; ball.stasisUntil = 0; ball.savedVx = 0; ball.savedVy = 0;
-  ball.curveUntil = 0; ball.curveForce = 0; ball.decoyUntil = 0;
+  ball.invisibleUntil = 0; ball.cloakStartedAt = 0; ball.cloakRevealStep = 0;
+  ball.stasisUntil = 0; ball.savedVx = 0; ball.savedVy = 0;
+  ball.curveUntil = 0; ball.curveForce = 0; ball.decoyUntil = 0; ball.decoys = [];
   const angle = Math.random() * .7 - .35;
   ball.vx = Math.cos(angle) * 5.3 * direction; ball.vy = Math.sin(angle) * 5.3; countdown = 70;
 }
@@ -184,7 +196,7 @@ function startGame() {
   const isResume = state === "paused";
   if (state === "ready" || state === "won") {
     if (!applyDraft()) {
-      message.textContent = "밴 3개씩과 스킬 선택 3개씩을 마친 뒤 시작할 수 있습니다.";
+      message.textContent = `밴 ${banCount}개씩과 스킬 선택 3개씩을 마친 뒤 시작할 수 있습니다.`;
       return;
     }
     winScore = Number(targetScore.value); targetDisplay.textContent = winScore;
@@ -203,7 +215,7 @@ function startGame() {
 }
 
 function showOverlay(kind) {
-  overlay.classList.remove("hidden"); scorePicker.hidden = kind === "pause"; loadoutPicker.hidden = kind === "pause";
+  overlay.classList.remove("hidden"); draftSettings.hidden = kind === "pause"; loadoutPicker.hidden = kind === "pause";
   if (kind === "pause") {
     tag.textContent = "GAME PAUSED"; title.textContent = "잠시 멈춤";
     message.textContent = "ESC 또는 SPACE로 경기를 계속하세요."; startBtn.innerHTML = "계속하기 <span>SPACE</span>";
@@ -262,6 +274,7 @@ function activateSkill(player, skill) {
     burst(ball.x, ball.y, "#b8ff5a", 28); tone(1120, .18);
   } else if (skill === "cloak") {
     ball.invisibleUntil = Math.max(ball.invisibleUntil, now + 1000);
+    ball.cloakStartedAt = now; ball.cloakRevealStep = 0;
     burst(ball.x, ball.y, "#7c85ff", 18); tone(620, .2);
   } else if (skill === "stasis") {
     if (now >= ball.stasisUntil) {
@@ -294,6 +307,13 @@ function activateSkill(player, skill) {
     burst(rival.x + rival.w / 2, rival.y + rival.h / 2, "#d37cff", 34); tone(150, .28);
   } else if (skill === "afterimage") {
     ball.decoyUntil = Math.max(ball.decoyUntil, now + 1500);
+    ball.decoys = [-.55, .55].map((angle) => ({
+      x: ball.x,
+      y: ball.y,
+      vx: ball.vx * Math.cos(angle) - ball.vy * Math.sin(angle),
+      vy: ball.vx * Math.sin(angle) + ball.vy * Math.cos(angle),
+      trail: []
+    }));
     burst(ball.x, ball.y, "#77ddff", 24); tone(820, .25);
   }
 }
@@ -325,6 +345,14 @@ function updateSkills(now) {
 
 function update(now) {
   updateSkills(now);
+  if (now < ball.invisibleUntil && ball.cloakStartedAt) {
+    const revealTimes = [300, 650];
+    if (ball.cloakRevealStep < revealTimes.length &&
+        now - ball.cloakStartedAt >= revealTimes[ball.cloakRevealStep]) {
+      burst(ball.x, ball.y, "#7c85ff", 12);
+      ball.cloakRevealStep++;
+    }
+  }
   particles.forEach((p) => { p.x += p.vx; p.y += p.vy; p.vx *= .97; p.vy *= .97; p.life -= .035; });
   for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
   if (state !== "playing") return;
@@ -346,6 +374,19 @@ function update(now) {
   }
   if (countdown-- > 0) return;
   if (now < ball.stasisUntil) return;
+  if (now < ball.decoyUntil) {
+    ball.decoys.forEach((decoy) => {
+      decoy.trail.unshift({ x: decoy.x, y: decoy.y });
+      if (decoy.trail.length > 12) decoy.trail.pop();
+      decoy.x += decoy.vx; decoy.y += decoy.vy;
+      if (decoy.y - ball.r < 10 || decoy.y + ball.r > H - 10) {
+        decoy.vy *= -1;
+        decoy.y = Math.max(20, Math.min(H - 20, decoy.y));
+      }
+      if (decoy.x < -ball.r) decoy.x = W + ball.r;
+      else if (decoy.x > W + ball.r) decoy.x = -ball.r;
+    });
+  }
   if (now < ball.curveUntil) ball.vy = Math.max(-9, Math.min(9, ball.vy + ball.curveForce));
   else ball.curveForce = 0;
   ball.trail.unshift({ x: ball.x, y: ball.y }); if (ball.trail.length > 12) ball.trail.pop();
@@ -407,25 +448,35 @@ function draw() {
       ctx.strokeRect(p.x - 4, p.y - 4, p.w + 8, p.h + 8);
     }
   });
-  const ballVisible = now >= ball.invisibleUntil;
-  if (ballVisible) {
+  const cloaked = now < ball.invisibleUntil;
+  const cloakElapsed = now - ball.cloakStartedAt;
+  const cloakFlash = cloaked && (
+    (cloakElapsed >= 300 && cloakElapsed < 390) ||
+    (cloakElapsed >= 650 && cloakElapsed < 740)
+  );
+  if (!cloaked) {
     ball.trail.forEach((t, i) => {
       ctx.globalAlpha = (1 - i / ball.trail.length) * .3; ctx.fillStyle = "#fff";
       ctx.beginPath(); ctx.arc(t.x, t.y, ball.r * (1 - i / 18), 0, Math.PI * 2); ctx.fill();
     });
     if (now < ball.decoyUntil) {
-      const decoyYs = [
-        Math.max(20, Math.min(H - 20, H - ball.y)),
-        Math.max(20, Math.min(H - 20, ball.y + Math.sin(now / 180) * 150))
-      ];
-      ctx.shadowBlur = 22; ctx.shadowColor = "#fff"; ctx.fillStyle = "#fff";
-      decoyYs.forEach((y) => {
-        ctx.beginPath(); ctx.arc(ball.x, y, ball.r, 0, Math.PI * 2); ctx.fill();
+      ball.decoys.forEach((decoy) => {
+        decoy.trail.forEach((t, i) => {
+          ctx.globalAlpha = (1 - i / decoy.trail.length) * .3; ctx.fillStyle = "#fff";
+          ctx.beginPath(); ctx.arc(t.x, t.y, ball.r * (1 - i / 18), 0, Math.PI * 2); ctx.fill();
+        });
+        const decoyColor = now < ball.turboUntil ? "#ffe66d" : "#fff";
+        ctx.globalAlpha = 1; ctx.shadowBlur = 22; ctx.shadowColor = decoyColor; ctx.fillStyle = decoyColor;
+        ctx.beginPath(); ctx.arc(decoy.x, decoy.y, ball.r, 0, Math.PI * 2); ctx.fill();
       });
       ctx.shadowBlur = 0;
     }
-    ctx.globalAlpha = 1; ctx.shadowBlur = 22; ctx.shadowColor = now < ball.turboUntil ? "#ffe66d" : "#fff";
-    ctx.fillStyle = now < ball.turboUntil ? "#ffe66d" : "#fff";
+  }
+  if (!cloaked || cloakFlash) {
+    ctx.globalAlpha = cloakFlash ? .72 : 1;
+    ctx.shadowBlur = 22; ctx.shadowColor = now < ball.turboUntil ? "#ffe66d" : "#fff";
+    ctx.shadowColor = cloakFlash ? "#7c85ff" : ctx.shadowColor;
+    ctx.fillStyle = cloakFlash ? "#b8bdff" : now < ball.turboUntil ? "#ffe66d" : "#fff";
     ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
   }
   particles.forEach((p) => { ctx.globalAlpha = p.life; ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, 4, 4); });
@@ -455,6 +506,10 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false);
 startBtn.addEventListener("click", startGame);
 targetScore.addEventListener("change", () => targetDisplay.textContent = targetScore.value);
+banCountSelect.addEventListener("change", () => {
+  banCount = Number(banCountSelect.value);
+  beginDraft(draftStarter);
+});
 soundBtn.addEventListener("click", () => { soundOn = !soundOn; soundBtn.textContent = soundOn ? "🔊 ON" : "🔇 OFF"; });
 skillBtns.forEach((btn) => btn.addEventListener("click", () => activateSkill(Number(btn.dataset.player), btn.dataset.skill)));
 document.querySelectorAll("[data-key]").forEach((btn) => {

@@ -19,7 +19,10 @@
     <div id="overlay" class="overlay">
       <p id="overlayTag">LOCAL MULTIPLAYER</p><h2 id="overlayTitle">대결을 준비하세요</h2>
       <p id="overlayText">목표 점수를 고르고 두 선수의 조작키를 확인하세요.</p>
-      <label id="scorePicker" class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
+      <div id="draftSettings" class="draft-settings">
+        <label class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
+        <label class="score-picker" for="banCount"><span>밴 개수</span><select id="banCount" aria-label="플레이어당 밴 개수"></select></label>
+      </div>
       <section id="loadoutPicker" class="loadout-picker" aria-label="스킬 선택">
         <div class="draft-player cyan-side">
           <strong>PLAYER 1</strong>
