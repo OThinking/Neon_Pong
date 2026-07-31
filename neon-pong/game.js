@@ -2,7 +2,9 @@ const $ = (selector) => document.querySelector(selector);
 const canvas = $("#game"), ctx = canvas.getContext("2d");
 const overlay = $("#overlay"), title = $("#overlayTitle"), message = $("#overlayText"), tag = $("#overlayTag");
 const startBtn = $("#startBtn"), draftSettings = $("#draftSettings"), targetScore = $("#targetScore"), targetDisplay = $("#targetDisplay");
-const banCountSelect = $("#banCount");
+const banCountSelect = $("#banCount"), gameModeSelect = $("#gameMode"), difficultySelect = $("#difficulty");
+const difficultyPicker = $("#difficultyPicker"), draftPlayer2Label = $("#draftPlayer2Label");
+const player2Label = $("#player2Label"), player2SkillLabel = $("#player2SkillLabel"), player2SkillKeys = $("#player2SkillKeys");
 const loadoutPicker = $("#loadoutPicker"), loadoutEls = [$("#loadout1"), $("#loadout2")];
 const banEls = [$("#bans1"), $("#bans2")], draftPool = $("#draftPool");
 const draftPhaseEl = $("#draftPhase"), draftTurnEl = $("#draftTurn");
@@ -30,7 +32,15 @@ let selectedSkills = [new Set(), new Set()];
 let skillKeyMaps = [{}, {}];
 let draftPicks = [[], []], draftBans = [[], []], draftStarter = 0, draftStep = 0, draftPhase = "ban";
 let banCount = 3;
+let gameMode = "multi", aiDifficulty = "normal", aiDraftTimer = 0, draftGeneration = 0;
+let aiTargetY = H / 2, aiNextThinkAt = 0, aiNextSkillAt = 0;
 let scores = [0, 0], state = "ready", countdown = 0, winScore = 7, soundOn = true, audio;
+
+const AI_LEVELS = {
+  easy: { speed: 3.8, reaction: 300, error: 85, prediction: 0, skillDelay: 3200 },
+  normal: { speed: 5.5, reaction: 150, error: 35, prediction: .55, skillDelay: 2300 },
+  hard: { speed: 7, reaction: 70, error: 10, prediction: 1, skillDelay: 1500 }
+};
 
 for (let i = 1; i <= 10; i++) {
   const option = document.createElement("option");
@@ -56,16 +66,33 @@ function applyDraft() {
   return true;
 }
 
+function scheduleAiDraft(currentPlayer) {
+  clearTimeout(aiDraftTimer);
+  if (gameMode !== "single" || currentPlayer !== 1 || draftPhase === "complete") return;
+  const generation = draftGeneration;
+  aiDraftTimer = setTimeout(() => {
+    if (generation !== draftGeneration || gameMode !== "single") return;
+    const available = Object.keys(SKILLS).filter((skill) =>
+      !draftBans.some((bans) => bans.includes(skill)) &&
+      !draftPicks.some((picks) => picks.includes(skill))
+    );
+    const skill = available[Math.floor(Math.random() * available.length)];
+    if (skill) chooseDraftSkill(skill, true);
+  }, 450);
+}
+
 function renderDraft() {
   const complete = draftPhase === "complete";
   const currentPlayer = (draftStarter + draftStep) % 2;
+  const aiTurn = gameMode === "single" && currentPlayer === 1 && !complete;
   const banSteps = banCount * 2;
   loadoutEls.forEach((container, player) => {
     container.replaceChildren();
     draftPicks[player].forEach((id, index) => {
       const pick = document.createElement("span");
       pick.className = "draft-pick";
-      pick.textContent = `${PLAYER_SKILL_KEYS[player][index]} · ${SKILLS[id].label}`;
+      const key = gameMode === "single" && player === 1 ? "AI" : PLAYER_SKILL_KEYS[player][index];
+      pick.textContent = `${key} · ${SKILLS[id].label}`;
       container.append(pick);
     });
     if (!draftPicks[player].length) {
@@ -90,19 +117,19 @@ function renderDraft() {
     const id = button.dataset.skill;
     const banned = draftBans.some((bans) => bans.includes(id));
     const picked = draftPicks.some((picks) => picks.includes(id));
-    button.disabled = banned || picked || complete;
+    button.disabled = banned || picked || complete || aiTurn;
     button.classList.toggle("banned", banned);
     button.classList.toggle("picked", picked);
     button.dataset.phase = draftPhase;
   });
   if (draftPhase === "ban") {
     draftPhaseEl.textContent = `BAN PHASE · ${draftStep}/${banSteps}`;
-    draftTurnEl.textContent = `PLAYER ${currentPlayer + 1} 밴 차례`;
-    message.textContent = `PLAYER ${currentPlayer + 1}이 제외할 스킬을 선택하세요.`;
+    draftTurnEl.textContent = aiTurn ? "AI 밴 선택 중" : `PLAYER ${currentPlayer + 1} 밴 차례`;
+    message.textContent = aiTurn ? "AI가 제외할 스킬을 고르고 있습니다." : `PLAYER ${currentPlayer + 1}이 제외할 스킬을 선택하세요.`;
   } else if (draftPhase === "pick") {
     draftPhaseEl.textContent = `PICK PHASE · ${draftStep}/6`;
-    draftTurnEl.textContent = `PLAYER ${currentPlayer + 1} 선택 차례`;
-    message.textContent = `PLAYER ${currentPlayer + 1}이 사용할 스킬을 선택하세요.`;
+    draftTurnEl.textContent = aiTurn ? "AI 스킬 선택 중" : `PLAYER ${currentPlayer + 1} 선택 차례`;
+    message.textContent = aiTurn ? "AI가 사용할 스킬을 고르고 있습니다." : `PLAYER ${currentPlayer + 1}이 사용할 스킬을 선택하세요.`;
   } else {
     draftPhaseEl.textContent = "DRAFT COMPLETE";
     draftTurnEl.textContent = "밴과 선택 완료!";
@@ -113,13 +140,15 @@ function renderDraft() {
     ? '게임 시작 <span>SPACE</span>'
     : draftPhase === "ban" ? `밴 진행 중 <span>${banCount}개씩</span>` : '스킬 선택 중 <span>3개씩</span>';
   if (complete) applyDraft();
+  scheduleAiDraft(currentPlayer);
 }
 
-function chooseDraftSkill(skill) {
+function chooseDraftSkill(skill, automated = false) {
+  const currentPlayer = (draftStarter + draftStep) % 2;
   if (draftPhase === "complete" ||
+      (gameMode === "single" && currentPlayer === 1 && !automated) ||
       draftBans.some((bans) => bans.includes(skill)) ||
       draftPicks.some((picks) => picks.includes(skill))) return;
-  const currentPlayer = (draftStarter + draftStep) % 2;
   if (draftPhase === "ban") draftBans[currentPlayer].push(skill);
   else draftPicks[currentPlayer].push(skill);
   draftStep++;
@@ -137,7 +166,9 @@ function chooseDraftSkill(skill) {
 }
 
 function beginDraft(firstPlayer) {
-  draftStarter = firstPlayer;
+  clearTimeout(aiDraftTimer);
+  draftGeneration++;
+  draftStarter = gameMode === "single" ? 0 : firstPlayer;
   draftStep = 0;
   draftPhase = banCount === 0 ? "pick" : "ban";
   draftPicks = [[], []];
@@ -205,6 +236,7 @@ function startGame() {
       p.activeUntil = 0; p.frozenUntil = 0; p.reversedUntil = 0;
       p.shrunkenUntil = 0; p.shieldUntil = 0; p.cooldowns = {}; p.h = p.baseH;
     });
+    aiTargetY = H / 2; aiNextThinkAt = 0; aiNextSkillAt = performance.now() + 1200;
   }
   state = "playing"; overlay.classList.add("hidden");
   if (!isResume) {
@@ -222,8 +254,8 @@ function showOverlay(kind) {
   } else {
     const winnerIndex = scores[0] > scores[1] ? 0 : 1;
     const loserIndex = 1 - winnerIndex;
-    tag.textContent = `PLAYER ${loserIndex + 1} PICKS FIRST`;
-    title.textContent = `PLAYER ${winnerIndex + 1} 승리!`;
+    tag.textContent = gameMode === "single" ? "PLAYER 1 PICKS FIRST" : `PLAYER ${loserIndex + 1} PICKS FIRST`;
+    title.textContent = gameMode === "single" && winnerIndex === 1 ? "AI 승리!" : `PLAYER ${winnerIndex + 1} 승리!`;
     beginDraft(loserIndex);
   }
 }
@@ -326,7 +358,7 @@ function updateSkills(now) {
     playerButtons.forEach((button) => {
       const skill = button.dataset.skill;
       const remaining = Math.max(0, (p.cooldowns[skill] || 0) - now);
-      button.disabled = remaining > 0 || state !== "playing";
+      button.disabled = remaining > 0 || state !== "playing" || (gameMode === "single" && i === 1);
       const label = SKILLS[skill].label;
       const key = skillKeyMaps[i][skill] || "·";
       button.innerHTML = remaining ? `<b>${Math.ceil(remaining / 1000)}s</b> ${label}` : `<b>${key}</b> ${label}`;
@@ -343,6 +375,33 @@ function updateSkills(now) {
   });
 }
 
+function reflectedY(y) {
+  const top = 20, range = H - 40, cycle = range * 2;
+  const offset = ((y - top) % cycle + cycle) % cycle;
+  return top + (offset > range ? cycle - offset : offset);
+}
+
+function updateAi(now) {
+  const config = AI_LEVELS[aiDifficulty];
+  const cloakElapsed = now - ball.cloakStartedAt;
+  const ballRevealed = now >= ball.invisibleUntil ||
+    (cloakElapsed >= 300 && cloakElapsed < 390) ||
+    (cloakElapsed >= 650 && cloakElapsed < 740);
+  if (now >= aiNextThinkAt && ballRevealed) {
+    const travelTime = ball.vx > 0 ? Math.max(0, (paddles[1].x - ball.x) / ball.vx) : 0;
+    const predicted = ball.y + ball.vy * travelTime * config.prediction;
+    aiTargetY = reflectedY(predicted) + (Math.random() * 2 - 1) * config.error;
+    aiNextThinkAt = now + config.reaction;
+  }
+  if (now >= aiNextSkillAt) {
+    const readySkills = draftPicks[1].filter((skill) => now >= (paddles[1].cooldowns[skill] || 0));
+    if (readySkills.length) activateSkill(1, readySkills[Math.floor(Math.random() * readySkills.length)]);
+    aiNextSkillAt = now + config.skillDelay + Math.random() * config.skillDelay * .5;
+  }
+  const center = paddles[1].y + paddles[1].h / 2;
+  return Math.abs(aiTargetY - center) < 8 ? 0 : aiTargetY < center ? -1 : 1;
+}
+
 function update(now) {
   updateSkills(now);
   if (now < ball.invisibleUntil && ball.cloakStartedAt) {
@@ -357,11 +416,15 @@ function update(now) {
   for (let i = particles.length - 1; i >= 0; i--) if (particles[i].life <= 0) particles.splice(i, 1);
   if (state !== "playing") return;
 
+  const aiDirection = gameMode === "single" ? updateAi(now) : 0;
   paddles.forEach((p, i) => {
     if (now < p.frozenUntil) return;
-    const speed = now < p.activeUntil ? 9.4 : 7.2;
-    const upPressed = i ? keys.ArrowUp : keys.w;
-    const downPressed = i ? keys.ArrowDown : keys.s;
+    const aiControlled = gameMode === "single" && i === 1;
+    const speed = aiControlled
+      ? AI_LEVELS[aiDifficulty].speed * (now < p.activeUntil ? 1.3 : 1)
+      : now < p.activeUntil ? 9.4 : 7.2;
+    const upPressed = aiControlled ? aiDirection < 0 : i ? keys.ArrowUp : keys.w;
+    const downPressed = aiControlled ? aiDirection > 0 : i ? keys.ArrowDown : keys.s;
     const reversed = now < p.reversedUntil;
     if (reversed ? downPressed : upPressed) p.y -= speed;
     if (reversed ? upPressed : downPressed) p.y += speed;
@@ -495,7 +558,7 @@ window.addEventListener("keydown", (e) => {
   if (!e.repeat && skillSlots[key]) {
     const [player, slot] = skillSlots[key];
     const skill = draftPicks[player][slot];
-    if (skill) activateSkill(player, skill);
+    if (skill && !(gameMode === "single" && player === 1)) activateSkill(player, skill);
   }
   if (e.key === " " && state !== "playing") startGame();
   if (e.key === "Escape") {
@@ -506,6 +569,20 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("keyup", (e) => keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false);
 startBtn.addEventListener("click", startGame);
 targetScore.addEventListener("change", () => targetDisplay.textContent = targetScore.value);
+gameModeSelect.addEventListener("change", () => {
+  gameMode = gameModeSelect.value;
+  difficultyPicker.hidden = gameMode !== "single";
+  draftPlayer2Label.textContent = gameMode === "single" ? "AI PLAYER" : "PLAYER 2";
+  player2Label.textContent = gameMode === "single" ? "AI PLAYER" : "PLAYER 2";
+  player2SkillLabel.textContent = gameMode === "single" ? "AI SKILLS" : "PLAYER 2 SKILLS";
+  player2SkillKeys.textContent = gameMode === "single" ? "AUTO" : "I · O · P";
+  tag.textContent = gameMode === "single" ? "SOLO VS AI" : "LOCAL MULTIPLAYER";
+  beginDraft(0);
+});
+difficultySelect.addEventListener("change", () => {
+  aiDifficulty = difficultySelect.value;
+  aiNextThinkAt = 0;
+});
 banCountSelect.addEventListener("change", () => {
   banCount = Number(banCountSelect.value);
   beginDraft(draftStarter);

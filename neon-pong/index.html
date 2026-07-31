@@ -12,7 +12,7 @@
   <section class="scoreboard" aria-label="점수판">
     <article class="player cyan"><span>PLAYER 1</span><strong id="score1">0</strong><small>W · S</small></article>
     <div class="round"><span>FIRST TO</span><strong id="targetDisplay">7</strong></div>
-    <article class="player pink"><span>PLAYER 2</span><strong id="score2">0</strong><small>↑ · ↓</small></article>
+    <article class="player pink"><span id="player2Label">PLAYER 2</span><strong id="score2">0</strong><small>↑ · ↓</small></article>
   </section>
   <section class="game-wrap">
     <canvas id="game" width="960" height="540" aria-label="네온 퐁 게임"></canvas>
@@ -20,6 +20,8 @@
       <p id="overlayTag">LOCAL MULTIPLAYER</p><h2 id="overlayTitle">대결을 준비하세요</h2>
       <p id="overlayText">목표 점수를 고르고 두 선수의 조작키를 확인하세요.</p>
       <div id="draftSettings" class="draft-settings">
+        <label class="score-picker" for="gameMode"><span>게임 모드</span><select id="gameMode" aria-label="게임 모드"><option value="single">1인용</option><option value="multi" selected>2인용</option></select></label>
+        <label id="difficultyPicker" class="score-picker" for="difficulty" hidden><span>난이도</span><select id="difficulty" aria-label="AI 난이도"><option value="easy">쉬움</option><option value="normal" selected>보통</option><option value="hard">어려움</option></select></label>
         <label class="score-picker" for="targetScore"><span>승리 점수</span><select id="targetScore" aria-label="승리 목표 점수"></select></label>
         <label class="score-picker" for="banCount"><span>밴 개수</span><select id="banCount" aria-label="플레이어당 밴 개수"></select></label>
       </div>
@@ -35,7 +37,7 @@
           <div id="draftPool" class="draft-pool"></div>
         </div>
         <div class="draft-player pink-side">
-          <strong>PLAYER 2</strong>
+          <strong id="draftPlayer2Label">PLAYER 2</strong>
           <small>밴</small><div id="bans2" class="draft-bans"></div>
           <small>선택한 스킬</small><div id="loadout2" class="draft-picks"></div>
         </div>
@@ -64,7 +66,7 @@
     </article>
     <p>모든 스킬은<br><strong>개별 쿨다운</strong></p>
     <article class="skill-card pink">
-      <div class="skill-heading"><span>PLAYER 2 SKILLS</span><strong>I · O · P</strong></div>
+      <div class="skill-heading"><span id="player2SkillLabel">PLAYER 2 SKILLS</span><strong id="player2SkillKeys">I · O · P</strong></div>
       <div class="skill-buttons">
         <button class="skill-btn" type="button" data-player="1" data-skill="overdrive" title="3초간 패들 확대 및 가속"><b>U</b> 오버드라이브</button>
         <button class="skill-btn" type="button" data-player="1" data-skill="turbo" title="공 속도를 즉시 증가"><b>I</b> 터보 볼</button>

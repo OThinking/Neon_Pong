@@ -1,8 +1,11 @@
 .draft-settings {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 8px;
 }
 .draft-settings[hidden] { display: none; }
+.score-picker[hidden] { display: none; }
 
 .loadout-picker {
   grid-template-columns: 1fr 1.7fr 1fr;
