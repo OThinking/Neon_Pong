@@ -194,8 +194,8 @@ const paddles = [
 const ball = {
   x: W / 2, y: H / 2, r: 9, vx: 0, vy: 0, trail: [],
   turboUntil: 0, invisibleUntil: 0, cloakStartedAt: 0, cloakRevealStep: 0,
-  stasisUntil: 0, curveUntil: 0, curveForce: 0,
-  decoyUntil: 0, decoys: [], savedVx: 0, savedVy: 0
+  stasisUntil: 0, stasisOwner: -1, curveUntil: 0, curveForce: 0,
+  decoyUntil: 0, decoyStartedAt: 0, decoySplit: false, decoys: [], savedVx: 0, savedVy: 0
 };
 
 function tone(freq, duration = .06) {
@@ -211,8 +211,9 @@ function tone(freq, duration = .06) {
 function resetBall(direction = Math.random() > .5 ? 1 : -1) {
   ball.x = W / 2; ball.y = H / 2; ball.trail = [];
   ball.invisibleUntil = 0; ball.cloakStartedAt = 0; ball.cloakRevealStep = 0;
-  ball.stasisUntil = 0; ball.savedVx = 0; ball.savedVy = 0;
-  ball.curveUntil = 0; ball.curveForce = 0; ball.decoyUntil = 0; ball.decoys = [];
+  ball.stasisUntil = 0; ball.stasisOwner = -1; ball.savedVx = 0; ball.savedVy = 0;
+  ball.curveUntil = 0; ball.curveForce = 0;
+  ball.decoyUntil = 0; ball.decoyStartedAt = 0; ball.decoySplit = false; ball.decoys = [];
   const angle = Math.random() * .7 - .35;
   ball.vx = Math.cos(angle) * 5.3 * direction; ball.vy = Math.sin(angle) * 5.3; countdown = 70;
 }
@@ -313,6 +314,7 @@ function activateSkill(player, skill) {
       ball.savedVx = ball.vx; ball.savedVy = ball.vy;
       ball.vx = 0; ball.vy = 0;
     }
+    ball.stasisOwner = player;
     ball.stasisUntil = Math.max(ball.stasisUntil, now + 700);
     burst(ball.x, ball.y, "#ffffff", 24); tone(110, .4);
   } else if (skill === "blink") {
@@ -339,6 +341,7 @@ function activateSkill(player, skill) {
     burst(rival.x + rival.w / 2, rival.y + rival.h / 2, "#d37cff", 34); tone(150, .28);
   } else if (skill === "afterimage") {
     ball.decoyUntil = Math.max(ball.decoyUntil, now + 1500);
+    ball.decoyStartedAt = now; ball.decoySplit = false;
     ball.decoys = [-.55, .55].map((angle) => ({
       x: ball.x,
       y: ball.y,
@@ -431,13 +434,28 @@ function update(now) {
     p.y = Math.max(14, Math.min(H - p.h - 14, p.y));
   });
   if (ball.stasisUntil && now >= ball.stasisUntil && ball.vx === 0 && ball.vy === 0) {
-    ball.vx = ball.savedVx; ball.vy = ball.savedVy;
-    ball.stasisUntil = 0; ball.savedVx = 0; ball.savedVy = 0;
+    const movingTowardOwner = ball.stasisOwner === 0 ? ball.savedVx < 0 : ball.savedVx > 0;
+    const resumeScale = movingTowardOwner ? .85 : 1.15;
+    ball.vx = ball.savedVx * resumeScale; ball.vy = ball.savedVy * resumeScale;
+    ball.stasisUntil = 0; ball.stasisOwner = -1; ball.savedVx = 0; ball.savedVy = 0;
     burst(ball.x, ball.y, "#ffffff", 12); tone(540, .1);
   }
   if (countdown-- > 0) return;
   if (now < ball.stasisUntil) return;
   if (now < ball.decoyUntil) {
+    if (!ball.decoySplit && now - ball.decoyStartedAt >= 750) {
+      const sources = [{ x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy }, ...ball.decoys];
+      const branches = sources.flatMap((source) => [-.45, .45].map((angle) => ({
+        x: source.x,
+        y: source.y,
+        vx: source.vx * Math.cos(angle) - source.vy * Math.sin(angle),
+        vy: source.vx * Math.sin(angle) + source.vy * Math.cos(angle),
+        trail: []
+      })));
+      ball.decoys.push(...branches);
+      ball.decoySplit = true;
+      sources.forEach((source) => burst(source.x, source.y, "#77ddff", 8));
+    }
     ball.decoys.forEach((decoy) => {
       decoy.trail.unshift({ x: decoy.x, y: decoy.y });
       if (decoy.trail.length > 12) decoy.trail.pop();
